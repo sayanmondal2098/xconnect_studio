@@ -16,6 +16,8 @@ import {
   Sparkles,
   ShieldCheck,
   ShieldX,
+  Link2,
+  Database,
 } from "lucide-react";
 
 function statusChip(it: IntegrationSummary) {
@@ -46,6 +48,22 @@ function fmt(ts: string | null) {
 }
 
 type TestResult = { ok: boolean; headline: string; details: string };
+type MappingItem = {
+  id?: number;
+  github_repo_full_name?: string;
+  servicenow_table?: string;
+  label?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type MappingDraft = {
+  githubLabel: string;
+  githubRepo: string;
+  servicenowLabel: string;
+  servicenowTable: string;
+  label: string;
+};
 
 type EditState =
   | {
@@ -78,6 +96,25 @@ export default function Connections() {
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
+  const [mappings, setMappings] = React.useState<MappingItem[]>([]);
+  const [mappingMsg, setMappingMsg] = React.useState<string | null>(null);
+  const [mappingErr, setMappingErr] = React.useState<string | null>(null);
+  const [mappingBusy, setMappingBusy] = React.useState(false);
+  const [mappingDraft, setMappingDraft] = React.useState<MappingDraft>({
+    githubLabel: "default",
+    githubRepo: "",
+    servicenowLabel: "default",
+    servicenowTable: "",
+    label: "",
+  });
+  const [repoOptions, setRepoOptions] = React.useState<{ label: string; repos: { full_name: string }[] }>({
+    label: "",
+    repos: [],
+  });
+  const [tableOptions, setTableOptions] = React.useState<{ label: string; tables: { name: string; label?: string | null }[] }>({
+    label: "",
+    tables: [],
+  });
 
   // Modal (test/edit)
   const [modalOpen, setModalOpen] = React.useState(false);
@@ -88,8 +125,16 @@ export default function Connections() {
 
   async function refresh() {
     setErr(null);
+    setMappingErr(null);
+    setMappingMsg(null);
     const res = await api.listIntegrations();
     setItems(res.items);
+    try {
+      const mappingsRes = await api.listMappings();
+      setMappings(mappingsRes.items ?? []);
+    } catch (e: any) {
+      setMappingErr(e.message || String(e));
+    }
   }
 
   React.useEffect(() => {
@@ -286,6 +331,95 @@ export default function Connections() {
         ? "Update credentials and config. This overwrites the stored secret for the label."
         : undefined;
 
+  const githubLabels = items.filter((it) => it.provider === "github").map((it) => it.label);
+  const servicenowLabels = items.filter((it) => it.provider === "servicenow").map((it) => it.label);
+
+  React.useEffect(() => {
+    if (!githubLabels.length) return;
+    setMappingDraft((prev) => ({
+      ...prev,
+      githubLabel: githubLabels.includes(prev.githubLabel) ? prev.githubLabel : githubLabels[0],
+    }));
+  }, [githubLabels]);
+
+  React.useEffect(() => {
+    if (!servicenowLabels.length) return;
+    setMappingDraft((prev) => ({
+      ...prev,
+      servicenowLabel: servicenowLabels.includes(prev.servicenowLabel) ? prev.servicenowLabel : servicenowLabels[0],
+    }));
+  }, [servicenowLabels]);
+
+  async function loadGithubRepos(label: string) {
+    if (!label) return;
+    setMappingErr(null);
+    setMappingMsg(null);
+    setMappingBusy(true);
+    try {
+      const r = await api.listGithubRepos(label);
+      setRepoOptions({ label, repos: r.repos ?? [] });
+      if (!mappingDraft.githubRepo && r.repos?.[0]?.full_name) {
+        setMappingDraft((prev) => ({ ...prev, githubRepo: r.repos[0].full_name }));
+      }
+      setMappingMsg(`Loaded ${r.repos.length} repo(s) for ${label}.`);
+    } catch (e: any) {
+      setMappingErr(e.message || String(e));
+    } finally {
+      setMappingBusy(false);
+    }
+  }
+
+  async function loadServiceNowTables(label: string) {
+    if (!label) return;
+    setMappingErr(null);
+    setMappingMsg(null);
+    setMappingBusy(true);
+    try {
+      const r = await api.listServiceNowTables(label, 50);
+      setTableOptions({ label, tables: r.tables ?? [] });
+      if (!mappingDraft.servicenowTable && r.tables?.[0]?.name) {
+        setMappingDraft((prev) => ({ ...prev, servicenowTable: r.tables[0].name }));
+      }
+      setMappingMsg(`Loaded ${r.tables.length} table(s) for ${label}.`);
+    } catch (e: any) {
+      setMappingErr(e.message || String(e));
+    } finally {
+      setMappingBusy(false);
+    }
+  }
+
+  async function createMapping() {
+    setMappingErr(null);
+    setMappingMsg(null);
+    if (!mappingDraft.githubRepo) {
+      setMappingErr("Choose a GitHub repo.");
+      return;
+    }
+    if (!mappingDraft.servicenowTable) {
+      setMappingErr("Choose a ServiceNow table.");
+      return;
+    }
+    setMappingBusy(true);
+    try {
+      await api.createMapping({
+        github_repo_full_name: mappingDraft.githubRepo,
+        servicenow_table: mappingDraft.servicenowTable,
+        label: mappingDraft.label || undefined,
+      });
+      setMappingMsg("Mapping saved.");
+      const mappingsRes = await api.listMappings();
+      setMappings(mappingsRes.items ?? []);
+    } catch (e: any) {
+      setMappingErr(e.message || String(e));
+    } finally {
+      setMappingBusy(false);
+    }
+  }
+
+  const totalConnections = items.length;
+  const healthyConnections = items.filter((it) => it.last_test_ok === true).length;
+  const failingConnections = items.filter((it) => it.last_test_ok === false).length;
+
   return (
     <Shell
       title="Connections"
@@ -460,6 +594,132 @@ export default function Connections() {
         ) : null}
       </Modal>
 
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+        <Card title="Connection health" subtitle="Snapshot from the latest tests.">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl2 border border-border bg-panel2/60 p-3">
+              <div className="text-xs text-muted">Total connections</div>
+              <div className="text-2xl font-semibold text-text">{totalConnections}</div>
+            </div>
+            <div className="rounded-xl2 border border-border bg-panel2/60 p-3">
+              <div className="text-xs text-muted">Healthy</div>
+              <div className="text-2xl font-semibold text-success">{healthyConnections}</div>
+            </div>
+            <div className="rounded-xl2 border border-border bg-panel2/60 p-3">
+              <div className="text-xs text-muted">Needs attention</div>
+              <div className="text-2xl font-semibold text-danger">{failingConnections}</div>
+            </div>
+          </div>
+        </Card>
+        <Card title="Mappings" subtitle="Backend mappings between GitHub repos and ServiceNow tables.">
+          {mappingErr ? <div className="text-sm text-danger">{mappingErr}</div> : null}
+          {mappingMsg ? <div className="text-sm text-success">{mappingMsg}</div> : null}
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-xl2 border border-border bg-panel/60 p-3">
+              <div className="text-xs text-muted mb-2">Create mapping</div>
+              <div className="grid gap-3">
+                <TextField
+                  label="GitHub connection label"
+                  value={mappingDraft.githubLabel}
+                  onChange={(v) => setMappingDraft((prev) => ({ ...prev, githubLabel: v }))}
+                  placeholder="default"
+                  helper="Matches the connection label from GitHub integrations."
+                />
+                <TextField
+                  label="ServiceNow connection label"
+                  value={mappingDraft.servicenowLabel}
+                  onChange={(v) => setMappingDraft((prev) => ({ ...prev, servicenowLabel: v }))}
+                  placeholder="default"
+                  helper="Matches the connection label from ServiceNow integrations."
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    className="btn btn-primary"
+                    type="button"
+                    onClick={() => loadGithubRepos(mappingDraft.githubLabel)}
+                    disabled={mappingBusy}
+                  >
+                    <Github className="w-4 h-4" /> Load repos
+                  </button>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => loadServiceNowTables(mappingDraft.servicenowLabel)}
+                    disabled={mappingBusy}
+                  >
+                    <Database className="w-4 h-4" /> Load tables
+                  </button>
+                </div>
+                <TextField
+                  label="GitHub repo (full name)"
+                  value={mappingDraft.githubRepo}
+                  onChange={(v) => setMappingDraft((prev) => ({ ...prev, githubRepo: v }))}
+                  placeholder="org/repo"
+                  list="github-repo-options"
+                  helper="Load repos or type one manually."
+                />
+                <TextField
+                  label="ServiceNow table"
+                  value={mappingDraft.servicenowTable}
+                  onChange={(v) => setMappingDraft((prev) => ({ ...prev, servicenowTable: v }))}
+                  placeholder="incident"
+                  list="servicenow-table-options"
+                />
+                <TextField
+                  label="Mapping label (optional)"
+                  value={mappingDraft.label}
+                  onChange={(v) => setMappingDraft((prev) => ({ ...prev, label: v }))}
+                  placeholder="prod-sync"
+                />
+                <button className="btn btn-primary justify-center" type="button" onClick={createMapping} disabled={mappingBusy}>
+                  <Link2 className="w-4 h-4" /> Save mapping
+                </button>
+              </div>
+              <datalist id="github-repo-options">
+                {repoOptions.repos.map((repo) => (
+                  <option key={repo.full_name} value={repo.full_name} />
+                ))}
+              </datalist>
+              <datalist id="servicenow-table-options">
+                {tableOptions.tables.map((table) => (
+                  <option key={table.name} value={table.name} />
+                ))}
+              </datalist>
+            </div>
+            <div className="rounded-xl2 border border-border bg-panel/60 p-3">
+              <div className="text-xs text-muted mb-2">Saved mappings</div>
+              <div className="max-h-72 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-muted">
+                    <tr>
+                      <th className="text-left font-medium py-1">Repo</th>
+                      <th className="text-left font-medium py-1">Table</th>
+                      <th className="text-left font-medium py-1">Label</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mappings.map((m, idx) => (
+                      <tr key={`${m.id ?? idx}`} className="border-t border-border">
+                        <td className="py-1 font-mono text-xs">{m.github_repo_full_name ?? "—"}</td>
+                        <td className="py-1 font-mono text-xs">{m.servicenow_table ?? "—"}</td>
+                        <td className="py-1 text-xs text-muted">{m.label || "—"}</td>
+                      </tr>
+                    ))}
+                    {mappings.length === 0 ? (
+                      <tr>
+                        <td className="py-4 text-center text-muted text-xs" colSpan={3}>
+                          No mappings yet. Create one to link a repo to a table.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 xl:col-span-7">
           <Card title="Saved connections" subtitle="Add, test, edit, delete. The full lifecycle of human indecision.">
@@ -487,7 +747,10 @@ export default function Connections() {
                         </span>
                       </td>
                       <td className="py-2 font-mono text-xs">{it.label}</td>
-                      <td className="py-2">{statusChip(it)}</td>
+                      <td className="py-2">
+                        {statusChip(it)}
+                        <div className="text-xs text-muted mt-1">{it.last_test_message || "No status message yet."}</div>
+                      </td>
                       <td className="py-2 text-muted">{fmt(it.last_tested_at)}</td>
                       <td className="py-2 text-right">
                         <div className="inline-flex gap-2">
