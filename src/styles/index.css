@@ -96,6 +96,25 @@ a { color: inherit; text-decoration: none; }
 .react-flow__arrowhead path {
   fill: rgb(var(--lavender));
 }
+.flow-run .react-flow__edge-path,
+.flow-run .react-flow__connection-path {
+  stroke-dasharray: 10 8;
+  animation: dashFlow 1s linear infinite;
+}
+.flow-run .react-flow__node {
+  animation: nodePulse 1200ms ease-in-out infinite;
+}
+
+@keyframes dashFlow {
+  to {
+    stroke-dashoffset: -400;
+  }
+}
+
+@keyframes nodePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--lavender) / 0.35); }
+  50% { box-shadow: 0 0 0 12px rgb(var(--lavender) / 0.0); }
+}
 
 
 /* -----------------------------

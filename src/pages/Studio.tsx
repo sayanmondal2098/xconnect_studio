@@ -30,7 +30,7 @@ import { toPng } from "html-to-image";
 import { jsPDF } from "jspdf";
 import { useWorkflowStore } from "../state/workflowStore";
 import type { WorkflowNodeData } from "../lib/types";
-import { Download, RotateCcw, ImageDown, FileDown, SlidersHorizontal } from "lucide-react";
+import { Download, RotateCcw, ImageDown, FileDown, SlidersHorizontal, Play, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 
 function uid() {
   // crypto.randomUUID is supported in modern browsers; fallback for the rest of the world.
@@ -61,6 +61,10 @@ export default function Studio() {
   const [exportMenuOpen, setExportMenuOpen] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
   const [name, setName] = React.useState(workflow.name);
+  const [runStatus, setRunStatus] = React.useState<"idle" | "running" | "success" | "error">("idle");
+  const [runLogs, setRunLogs] = React.useState<{ ts: number; level: "info" | "success" | "error"; message: string }[]>([]);
+  const [runProgress, setRunProgress] = React.useState(0);
+  const [currentStep, setCurrentStep] = React.useState<string | null>(null);
 
   const nodeTypes = React.useMemo(() => ({ basic: BasicNode }), []);
   const edgeColor = "rgb(var(--lavender))";
@@ -134,6 +138,45 @@ export default function Studio() {
     const trimmed = name.trim() || "Untitled workflow";
     setName(trimmed);
     setWorkflowName(trimmed);
+  }
+
+  function pushLog(level: "info" | "success" | "error", message: string) {
+    setRunLogs((prev) => [{ ts: Date.now(), level, message }, ...prev].slice(0, 200));
+  }
+
+  async function runWorkflow() {
+    if (runStatus === "running") return;
+    if (!nodes.length) {
+      pushLog("error", "Cannot run: add at least one node.");
+      setRunStatus("error");
+      return;
+    }
+
+    setRunStatus("running");
+    setRunProgress(0);
+    setCurrentStep(null);
+    pushLog("info", `Starting run for "${name || "Untitled workflow"}"...`);
+
+    try {
+      const steps = nodes.map((n) => n.data?.title || n.id);
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        setCurrentStep(step);
+        pushLog("info", `Executing: ${step}`);
+        setRunProgress(Math.round(((i + 1) / steps.length) * 100));
+        // Lightweight wait to mimic work / animation sync
+        await new Promise((res) => setTimeout(res, 700));
+      }
+
+      pushLog("success", "Run completed successfully.");
+      setRunStatus("success");
+      setCurrentStep(null);
+      setTimeout(() => setRunStatus("idle"), 1200);
+    } catch (e: any) {
+      pushLog("error", e?.message || "Run failed.");
+      setRunStatus("error");
+      setCurrentStep(null);
+    }
   }
 
   function onConnect(params: Edge | Connection) {
@@ -269,6 +312,16 @@ export default function Studio() {
       title="Studio"
       right={
         <div className="flex items-center gap-2">
+          <button
+            className="btn btn-primary"
+            onClick={runWorkflow}
+            title="Run workflow"
+            disabled={exporting || runStatus === "running"}
+          >
+            {runStatus === "running" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            {runStatus === "running" ? "Running..." : "Run"}
+          </button>
+
           <div className="relative" data-export-menu>
             <button
               className="btn btn-primary"
@@ -357,6 +410,7 @@ export default function Studio() {
               <ErrorBoundary>
                 <ReactFlowProvider>
                   <ReactFlow
+                    className={runStatus === "running" ? "flow-run" : ""}
                     nodes={nodes}
                     edges={edges}
                     nodeTypes={nodeTypes}
@@ -388,7 +442,50 @@ export default function Studio() {
           <Card title="Nodes" subtitle="Drag into the canvas.">
             <NodePalette />
           </Card>
+
+          <Card
+            title={
+              <div className="flex items-center gap-2">
+                {runStatus === "running" ? <Loader2 className="w-4 h-4 animate-spin text-lavender" /> : null}
+                {runStatus === "success" ? <CheckCircle2 className="w-4 h-4 text-mint" /> : null}
+                {runStatus === "error" ? <AlertTriangle className="w-4 h-4 text-danger" /> : null}
+                <span>Run details</span>
+                <span className="chip !text-xs !px-2">{runStatus.toUpperCase()}</span>
+              </div>
+            }
+            subtitle={currentStep ? `Working on: ${currentStep}` : runStatus === "success" ? "Completed" : "Run to see logs."}
+          >
+            <div className="progress-bar">
+              <div
+                className="h-full bg-gradient-to-r from-lavender/60 via-mint/70 to-peach/70 transition-all duration-300"
+                style={{ width: `${runProgress}%` }}
+              />
+            </div>
+
+            <div className="mt-3 h-48 rounded-xl2 border border-border bg-panel2 px-3 py-2 overflow-y-auto text-xs font-mono space-y-2">
+              {runLogs.length === 0 ? (
+                <div className="text-muted">No logs yet. Click Run to simulate the workflow.</div>
+              ) : (
+                runLogs.map((l, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <span className="text-muted">{new Date(l.ts).toLocaleTimeString()}</span>
+                    <span
+                      className={
+                        l.level === "error"
+                          ? "text-danger"
+                          : l.level === "success"
+                          ? "text-mint"
+                          : "text-text"
+                      }
+                    >
+                      {l.message}
+                    </span>
                   </div>
+                ))
+              )}
+            </div>
+          </Card>
+        </div>
       </div>
     </Shell>
   );
