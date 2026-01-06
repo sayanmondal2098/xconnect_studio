@@ -1,0 +1,175 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme tokens use RGB triplets so Tailwind alpha (e.g., lavender/40) works. */
+:root {
+  --bg: 11 12 16;
+  --panel: 15 18 32;
+  --panel2: 18 22 43;
+  --border: 35 41 74;
+  --text: 234 234 240;
+  --muted: 165 168 189;
+
+  --mint: 184 242 230;
+  --lavender: 216 199 255;
+  --peach: 255 211 182;
+  --sky: 191 227 255;
+  --lemon: 255 241 184;
+
+  --danger: 255 135 135;
+  --success: 144 238 172;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: 250 251 254;
+  --panel: 255 255 255;
+  --panel2: 246 247 252;
+  --border: 219 225 240;
+  --text: 20 22 35;
+  --muted: 92 100 126;
+
+  /* Pastel accents slightly deeper for light backgrounds */
+  --mint: 120 229 206;
+  --lavender: 179 153 255;
+  --peach: 255 182 143;
+  --sky: 126 196 255;
+  --lemon: 255 224 120;
+
+  --danger: 235 87 87;
+  --success: 33 150 83;
+
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  color: rgb(var(--text));
+  background:
+    radial-gradient(1200px 800px at 20% 10%, rgb(var(--lavender) / 0.14), transparent 60%),
+    radial-gradient(900px 700px at 80% 30%, rgb(var(--mint) / 0.10), transparent 60%),
+    radial-gradient(900px 700px at 50% 90%, rgb(var(--peach) / 0.10), transparent 60%),
+    rgb(var(--bg));
+}
+
+a { color: inherit; text-decoration: none; }
+
+@layer components {
+  .btn {
+    @apply px-3 py-2 rounded-xl2 border border-border bg-panel hover:bg-panel2 text-sm inline-flex items-center gap-2;
+  }
+  .btn-primary {
+    @apply border-lavender/40 hover:border-lavender/60;
+  }
+  .btn-danger {
+    @apply border-danger/40 hover:border-danger/60;
+  }
+  .chip {
+    @apply px-2 py-1 rounded-xl2 border border-border bg-panel2 text-xs text-muted;
+  }
+}
+
+/* ReactFlow tweaks so it doesn't look like default developer sadness */
+.react-flow {
+  background: transparent;
+}
+.react-flow__controls button {
+  background: rgb(var(--panel));
+  border: 1px solid rgb(var(--border));
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
+}
+.react-flow__minimap {
+  background: rgb(var(--panel));
+  border: 1px solid rgb(var(--border));
+}
+.react-flow__edge-path,
+.react-flow__connection-path {
+  stroke: rgb(var(--lavender));
+  stroke-width: 2;
+}
+.react-flow__arrowhead path {
+  fill: rgb(var(--lavender));
+}
+
+
+/* -----------------------------
+   Anime-ish modal vibes (sorry)
+--------------------------------*/
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-pop { animation: popIn 240ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+@keyframes speedLines {
+  from { background-position: 0 0, 0 0, 0 0; }
+  to   { background-position: 260px 0, -260px 0, 0 0; }
+}
+.anime-backdrop{
+  background:
+    radial-gradient(1000px 700px at 30% 20%, rgb(var(--lavender) / 0.18), transparent 55%),
+    radial-gradient(900px 600px at 75% 35%, rgb(var(--mint) / 0.14), transparent 60%),
+    radial-gradient(1100px 700px at 50% 90%, rgb(var(--peach) / 0.14), transparent 60%),
+    repeating-linear-gradient(60deg, rgb(var(--text) / 0.04) 0, rgb(var(--text) / 0.04) 2px, transparent 2px, transparent 10px),
+    repeating-linear-gradient(120deg, rgb(var(--text) / 0.03) 0, rgb(var(--text) / 0.03) 2px, transparent 2px, transparent 12px),
+    rgb(0 0 0 / 0.55);
+  backdrop-filter: blur(10px);
+  animation: speedLines 900ms linear infinite;
+}
+
+@keyframes scan {
+  from { transform: translateY(-120%); opacity: 0.0; }
+  20%  { opacity: 0.25; }
+  to   { transform: translateY(120%); opacity: 0.0; }
+}
+.scanline {
+  position: relative;
+  overflow: hidden;
+}
+.scanline::after{
+  content:"";
+  position:absolute;
+  left:-10%;
+  top:0;
+  width:120%;
+  height:26%;
+  background: linear-gradient(90deg, transparent, rgb(var(--sky) / 0.22), transparent);
+  filter: blur(2px);
+  animation: scan 1200ms ease-in-out infinite;
+  pointer-events:none;
+}
+
+@keyframes shimmer {
+  from { transform: translateX(-40%); }
+  to { transform: translateX(120%); }
+}
+.progress-bar{
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: rgb(var(--panel2));
+  border: 1px solid rgb(var(--border));
+  overflow: hidden;
+}
+.progress-bar::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  width:45%;
+  background: linear-gradient(90deg, transparent, rgb(var(--lavender) / 0.75), rgb(var(--mint) / 0.75), transparent);
+  animation: shimmer 900ms linear infinite;
+}
+
+
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.toast-pop { animation: toastIn 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
