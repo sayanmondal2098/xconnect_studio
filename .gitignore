@@ -26,3 +26,7 @@ Thumbs.db
 
 #Local Secret manager
 .envvvvv 
+# Ignore env files (secrets)
+.env
+.env.*
+!.env.example
