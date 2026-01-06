@@ -6,6 +6,8 @@ export function TextField(props: {
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
+  list?: string;
+  helper?: React.ReactNode;
 }) {
   return (
     <label className="block">
@@ -16,8 +18,10 @@ export function TextField(props: {
         onChange={(e) => props.onChange(e.target.value)}
         placeholder={props.placeholder}
         type={props.type ?? "text"}
+        list={props.list}
         autoComplete="off"
       />
+      {props.helper ? <div className="mt-1 text-xs text-muted">{props.helper}</div> : null}
     </label>
   );
 }
