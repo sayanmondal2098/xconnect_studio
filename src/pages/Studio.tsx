@@ -44,6 +44,7 @@ export default function Studio() {
   const storeViewport = useWorkflowStore((s) => s.viewport);
   const setWfNodes = useWorkflowStore((s) => s.setNodes);
   const setWfEdges = useWorkflowStore((s) => s.setEdges);
+  const setWorkflowName = useWorkflowStore((s) => s.setWorkflowName);
   const setViewport = useWorkflowStore((s) => s.setViewport);
   const selectNode = useWorkflowStore((s) => s.selectNode);
   const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId);
@@ -59,6 +60,7 @@ export default function Studio() {
   const [inspectorOpen, setInspectorOpen] = React.useState(false);
   const [exportMenuOpen, setExportMenuOpen] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
+  const [name, setName] = React.useState(workflow.name);
 
   const nodeTypes = React.useMemo(() => ({ basic: BasicNode }), []);
   const edgeColor = "rgb(var(--lavender))";
@@ -111,6 +113,10 @@ export default function Studio() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workflow.nodes, workflow.edges]);
 
+  React.useEffect(() => {
+    setName(workflow.name);
+  }, [workflow.name]);
+
   // Persist to store
   React.useEffect(() => {
     if (!hydrating.current) setWfNodes(nodes as any);
@@ -118,6 +124,17 @@ export default function Studio() {
   React.useEffect(() => {
     if (!hydrating.current) setWfEdges(edges as any);
   }, [edges, setWfEdges]);
+
+  function onNameChange(v: string) {
+    setName(v);
+    setWorkflowName(v);
+  }
+
+  function onNameBlur() {
+    const trimmed = name.trim() || "Untitled workflow";
+    setName(trimmed);
+    setWorkflowName(trimmed);
+  }
 
   function onConnect(params: Edge | Connection) {
     setEdges((eds) => addEdge({ ...params, animated: true }, eds));
@@ -324,7 +341,18 @@ export default function Studio() {
 
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 xl:col-span-8">
-          <Card title={workflow.name} subtitle="Drag nodes in, wire them up, and pretend this is all effortless.">
+          <Card
+            title={
+              <input
+                value={name}
+                onChange={(e) => onNameChange(e.target.value)}
+                onBlur={onNameBlur}
+                className="w-full rounded-xl2 bg-panel2 border border-border px-3 py-2 text-sm outline-none focus:border-lavender/60"
+                placeholder="Workflow name"
+              />
+            }
+            subtitle="Drag nodes in, wire them up, and pretend this is all effortless."
+          >
             <div ref={rfWrapperRef} className="h-[70vh] rounded-xl2 border border-border bg-panel/30 overflow-hidden">
               <ErrorBoundary>
                 <ReactFlowProvider>

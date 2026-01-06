@@ -9,6 +9,7 @@ type State = {
   selectedNodeId: string | null;
 
   setWorkflow: (wf: WorkflowDef) => void;
+  setWorkflowName: (name: string) => void;
   setNodes: (nodes: Node<WorkflowNodeData>[]) => void;
   setEdges: (edges: Edge[]) => void;
   setViewport: (v: Viewport) => void;
@@ -48,6 +49,7 @@ export const useWorkflowStore = create<State>()(
       ...DEFAULT,
 
       setWorkflow: (wf) => set({ workflow: sanitize(wf) }),
+      setWorkflowName: (name) => set({ workflow: sanitize({ ...get().workflow, name }) }),
       setNodes: (nodes) => set({ workflow: sanitize({ ...get().workflow, nodes }) }),
       setEdges: (edges) => set({ workflow: sanitize({ ...get().workflow, edges }) }),
       setViewport: (v) => set({ viewport: v }),
