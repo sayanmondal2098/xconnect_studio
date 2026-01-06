@@ -65,6 +65,7 @@ export default function Studio() {
   const [runLogs, setRunLogs] = React.useState<{ ts: number; level: "info" | "success" | "error"; message: string }[]>([]);
   const [runProgress, setRunProgress] = React.useState(0);
   const [currentStep, setCurrentStep] = React.useState<string | null>(null);
+  const [currentStepId, setCurrentStepId] = React.useState<string | null>(null);
 
   const nodeTypes = React.useMemo(() => ({ basic: BasicNode }), []);
   const edgeColor = "rgb(var(--lavender))";
@@ -83,6 +84,24 @@ export default function Studio() {
       strokeWidth: 2,
     }),
     [edgeColor]
+  );
+
+  const decoratedNodes = React.useMemo(
+    () =>
+      nodes.map((n) =>
+        currentStepId === n.id ? { ...n, className: "node-active" } : { ...n, className: n.className ?? "" }
+      ),
+    [nodes, currentStepId]
+  );
+
+  const decoratedEdges = React.useMemo(
+    () =>
+      edges.map((e) =>
+        currentStepId && e.source === currentStepId
+          ? { ...e, className: "edge-active" }
+          : { ...e, className: e.className ?? "" }
+      ),
+    [edges, currentStepId]
   );
 
   React.useEffect(() => {
@@ -158,11 +177,12 @@ export default function Studio() {
     pushLog("info", `Starting run for "${name || "Untitled workflow"}"...`);
 
     try {
-      const steps = nodes.map((n) => n.data?.title || n.id);
+      const steps = nodes.map((n) => ({ id: n.id, title: n.data?.title || n.id, provider: (n.data as any)?.provider }));
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
-        setCurrentStep(step);
-        pushLog("info", `Executing: ${step}`);
+        setCurrentStep(step.title);
+        setCurrentStepId(step.id);
+        pushLog("info", `Step ${i + 1}/${steps.length}: ${step.title} (${step.provider || "node"})`);
         setRunProgress(Math.round(((i + 1) / steps.length) * 100));
         // Lightweight wait to mimic work / animation sync
         await new Promise((res) => setTimeout(res, 700));
@@ -171,11 +191,13 @@ export default function Studio() {
       pushLog("success", "Run completed successfully.");
       setRunStatus("success");
       setCurrentStep(null);
+      setCurrentStepId(null);
       setTimeout(() => setRunStatus("idle"), 1200);
     } catch (e: any) {
       pushLog("error", e?.message || "Run failed.");
       setRunStatus("error");
       setCurrentStep(null);
+      setCurrentStepId(null);
     }
   }
 
@@ -411,8 +433,8 @@ export default function Studio() {
                 <ReactFlowProvider>
                   <ReactFlow
                     className={runStatus === "running" ? "flow-run" : ""}
-                    nodes={nodes}
-                    edges={edges}
+                    nodes={decoratedNodes}
+                    edges={decoratedEdges}
                     nodeTypes={nodeTypes}
                     defaultEdgeOptions={defaultEdgeOptions}
                     connectionLineStyle={connectionLineStyle}
@@ -441,6 +463,39 @@ export default function Studio() {
         <div className="col-span-12 xl:col-span-4 flex flex-col gap-4">
           <Card title="Nodes" subtitle="Drag into the canvas.">
             <NodePalette />
+          </Card>
+
+          <Card
+            title="Flow steps"
+            subtitle="Plain-language checklist anyone can follow."
+          >
+            <ol className="space-y-2 text-sm">
+              {nodes.length === 0 ? (
+                <li className="text-muted">Add nodes to build the flow.</li>
+              ) : (
+                nodes.map((n, i) => {
+                  const isActive = n.id === currentStepId;
+                  return (
+                    <li
+                      key={n.id}
+                      className={[
+                        "flex items-center gap-2 p-2 rounded-xl2 border transition",
+                        isActive ? "border-lavender/60 bg-panel2" : "border-border bg-panel/60",
+                      ].join(" ")}
+                    >
+                      <span className="chip !px-2 !py-1 !text-xs">Step {i + 1}</span>
+                      <div className="flex flex-col">
+                        <span className="text-text">{n.data?.title || n.id}</span>
+                        <span className="text-xs text-muted">
+                          {n.data?.provider ? `${n.data.provider} • ` : ""}{n.data?.op || "Action"}
+                        </span>
+                      </div>
+                      {isActive ? <Loader2 className="w-4 h-4 animate-spin text-lavender ml-auto" /> : null}
+                    </li>
+                  );
+                })
+              )}
+            </ol>
           </Card>
 
           <Card
